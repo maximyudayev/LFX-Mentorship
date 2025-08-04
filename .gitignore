@@ -347,3 +347,7 @@ __pycache__/
 dump.vcd
 results.xml
 sim_build/
+
+# Python virtual environment
+venv/
+*.json
