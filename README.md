@@ -41,15 +41,109 @@ Based on the following instructions and their encodings, the `StackModule` will 
 - **pop:** The pop instruction removes the `dataWidth`-bit value from the top of the stack and sends it to `io.out` while also asserting `io.popped`. `io.isEmpty` is asserted if the stack becomes empty. If the stack is already empty, `io.underflow` will be asserted and the value 0 will be read..
 - **peek:** The peek instruction reads the `dataWidth`-bit value from the top of the stack and sends it to `io.out` while also asserting `io.peeked`. If the stack is already empty, `io.underflow` will be asserted and the value 0 will be read.
 
-## Run Tests
+## Installation
 
-In order to run tests, you need to have `cocotb` and `bitstring` installed.
-```sh
-pip install 'cocotb~=1.9'
-pip install bitstring
-```
+The most convenient way to work with the [Chisel language](https://www.chisel-lang.org/) on Windows is via WSL. In case of a managed workstation, running a Linux dual-boot may be not allowed. WSL offers an acceptable workaround.
+
+1. With administrator priveleges in PowerShell, install WSL (will use Ubuntu by default).
+   ```ps
+   wsl --install
+   ``` 
+
+2. Setup user and password for the WSL account when prompted.
+
+3. In the WSL shell, upgrade Linux packages.
+   ```sh
+   sudo apt update && sudo apt upgrade
+   ```
+
+4. Default Python in WSL is externally managed, use virtual environments instead (also cleaner per-project).
+   ```sh
+   sudo apt install python3-pip python3-venv python3-full
+   sudo python3 -m venv <project root folder>/venv-wsl
+   ```
+
+5. Installing pip packages now will throw `OSError`. Add metadata configuration to the WSL on mounting the Windows disk.
+   ```sh
+   echo -e '[automount]\noptions = "metadata"' | sudo tee -a /etc/wsl.conf
+   ```
+   Exit WSL session.
+   ```sh
+   exit
+   ```
+   Terminate the VM from the PowerShell.
+   ```ps
+   wsl --terminate Ubuntu
+   ```
+   Reboot the PC.
+
+6. Launch PowerShell and start the `wsl`. You will now be able to install pip packages.
+
+   Activate the environment and install packages required for the given design.
+   ```sh
+   source ./venv-wsl/bin/activate
+   pip install bitarray 'cocotb~=1.9' bitstring
+   ```
+
+   (Optional): If a `ModuleNotFoundError` is thrown, mentioning missing `bitarray.util` package, force reinstall `bitarray`:
+   ```sh
+   pip install --force-reinstall bitarray
+   ```
+
+7. Install Scala CLI
+   ```sh
+   curl -sSLf https://scala-cli.virtuslab.org/get | sh
+   ```
+   Test that Scala works
+   ```sh
+   mkdir /home/"$USER"/Downloads && cd "$_"
+   curl -O -L https://github.com/chipsalliance/chisel/releases/latest/download/chisel-example.scala
+   scala-cli chisel-example.scala
+   ```
+
+8. Install the Chisel build environment as a super-user
+   ```sh
+   # Activate superuser for convenience
+   su
+   
+   # Ensure the necessary packages are present:
+   apt install -y wget gpg apt-transport-https
+   
+   # Download the Eclipse Adoptium GPG key:
+   wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null
+   
+   # Configure the Eclipse Adoptium apt repository
+   echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
+   
+   # Update the apt packages
+   apt update
+   
+   # Install
+   apt install temurin-17-jdk
+   
+   # Mill is a modern Scala build tool with simple syntax and a better command-line experience than SBT
+   curl -L https://raw.githubusercontent.com/lefou/millw/0.4.11/millw > mill && chmod +x mill
+   # You can then move this script to a global install location
+   sudo mv mill /usr/local/bin/
+   
+   # SBT is the more traditional Scala build tool
+   curl -s -L https://github.com/sbt/sbt/releases/download/v1.9.7/sbt-1.9.7.tgz | tar xvz
+   # Then copy the sbt bootstrap script into a global install location
+   sudo mv sbt/bin/sbt /usr/local/bin/
+   
+   # Verilator is a high-performance, open-source Verilog simulator
+   apt install -y verilator
+   
+   # Exit super-user mode
+   exit
+   ```
+
+You should now be able to easily develop with Chisel on a Windows machine.
+
+## Run Tests
 
 To simulate and run the tests on your DUT, run:
 ```sh
+source venv-wsl/bin/activate
 python3 run_tests.py
 ```

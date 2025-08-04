@@ -14,14 +14,10 @@ object Opcode extends ChiselEnum {
   val pop   = Value(0x43.U)
 }
 
-class InstructionBundle extends Bundle {
-  val imm = UInt(25.W)
-  val opcode = Opcode()
-}
-
 class StackModule(val dataWidth: Int, val len: Int) extends Module {
   val io = IO(new Bundle {
-    val in = Input(new InstructionBundle)
+    // val in = Input(new InstructionBundle)
+    val in = Input(UInt(32.W))
     val out = Output(UInt(dataWidth.W))
     val underflow = Output(Bool())
     val overflow = Output(Bool())
@@ -32,37 +28,55 @@ class StackModule(val dataWidth: Int, val len: Int) extends Module {
   })
 
   // Convenience values
-  val stackPtrBits = (log2Ceil(len)).W
+  val emptyEntry = 0.U(dataWidth.W)
+  val immWidth = 25
+  val stackPtrBits = (log2Ceil(len+1)).W
   val botPtr = 0.U(stackPtrBits)
   val topPtr = len.U(stackPtrBits)
-  val emptyEntry = 0.U(dataWidth.W)
+  // To zero extend the immediate into the stack, datawidth must be wider
+  val inData = Wire(UInt(dataWidth.W))
 
   // Intermediate signals for MUXes
-  val isWrite = io.in.opcode.isOneOf(Opcode.push)
-  val isRead = io.in.opcode.isOneOf(Opcode.pop, Opcode.peek)
-  val noneSet = ~(io.in.imm.orR)
+  val opcode = io.in(6,0)
+  val imm = io.in(31,7)
+  val isPush = opcode === Opcode.push.asUInt
+  val isPeek = opcode === Opcode.peek.asUInt
+  val isPop = opcode === Opcode.pop.asUInt
+  val isRead = isPeek | isPop
+  val noneSet = ~(imm.orR)
 
   // Registers for stack
   val stack = RegInit(VecInit(Seq.fill(len)(emptyEntry)))
+  // val stack = Mem(len, UInt(dataWidth.W))
   val stackPtr = RegInit(botPtr)
+  val stackPtrNext = stackPtr + 1.U
+  val stackPtrPrev = stackPtr - 1.U
 
   // Combinational output flags
   val isEmpty = stackPtr === botPtr
   val isFull = stackPtr === topPtr
   val underflow = isRead & noneSet & isEmpty
-  val overflow = isWrite & isFull
-  val popped = (io.in.opcode === Opcode.pop) & noneSet & ~isEmpty
-  val peeked = (io.in.opcode === Opcode.peek) & noneSet & ~isEmpty
+  val overflow = isPush & isFull
+  val popped = isPop & noneSet & ~isEmpty
+  val peeked = isPeek & noneSet & ~isEmpty
 
   // Stack output data (output valid data or 0 by default)
-  val out = Mux(isRead & noneSet & ~isEmpty, stack(stackPtr), emptyEntry)
+  val ptr = Mux(~isEmpty, stackPtrPrev, botPtr)
+  val out = Mux(isRead & noneSet & ~isEmpty, stack(ptr), emptyEntry)
+
+  // Depending on the module parameterization
+  if (dataWidth > immWidth) {
+    inData := Cat(0.U((dataWidth-immWidth).W), imm)
+  } else {
+    inData := imm(dataWidth-1,0)
+  }
 
   // Increment/decrement pointer
-  when (isWrite & ~isFull) {
-    stack(stackPtr) := Cat(0.U(7.W), io.in.imm)
-    stackPtr := stackPtr + 1.U
+  when (isPush & ~isFull) {
+    stack(stackPtr) := inData
+    stackPtr := stackPtrNext
   } .elsewhen (popped) {
-    stackPtr := stackPtr - 1.U
+    stackPtr := stackPtrPrev
   }
 
   // Connect local signals to IO
@@ -86,11 +100,5 @@ object SVGen extends App {
   new ChiselStage().emitSystemVerilog(
     new StackModule(args(0).toInt, args(1).toInt),
     Array("--target-dir", out),
-  )
-}
-
-object MyStack extends App {
-  new ChiselStage().emitSystemVerilog(
-    new StackModule(8, 10),
   )
 }

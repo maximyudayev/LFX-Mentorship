@@ -350,4 +350,5 @@ sim_build/
 
 # Python virtual environment
 venv/
+venv-wsl/
 *.json
