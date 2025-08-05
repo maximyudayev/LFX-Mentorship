@@ -16,7 +16,6 @@ object Opcode extends ChiselEnum {
 
 class StackModule(val dataWidth: Int, val len: Int) extends Module {
   val io = IO(new Bundle {
-    // val in = Input(new InstructionBundle)
     val in = Input(UInt(32.W))
     val out = Output(UInt(dataWidth.W))
     val underflow = Output(Bool())
@@ -33,7 +32,7 @@ class StackModule(val dataWidth: Int, val len: Int) extends Module {
   val stackPtrBits = (log2Ceil(len+1)).W
   val botPtr = 0.U(stackPtrBits)
   val topPtr = len.U(stackPtrBits)
-  // To zero extend the immediate into the stack, datawidth must be wider
+  // To zero extend the immediate into the stack, dataWidth must be wider
   val inData = Wire(UInt(dataWidth.W))
 
   // Intermediate signals for MUXes
@@ -47,12 +46,11 @@ class StackModule(val dataWidth: Int, val len: Int) extends Module {
 
   // Registers for stack
   val stack = RegInit(VecInit(Seq.fill(len)(emptyEntry)))
-  // val stack = Mem(len, UInt(dataWidth.W))
   val stackPtr = RegInit(botPtr)
   val stackPtrNext = stackPtr + 1.U
   val stackPtrPrev = stackPtr - 1.U
 
-  // Combinational output flags
+  // Output flags all change along with stackPtr, on a rising edge
   val isEmpty = stackPtr === botPtr
   val isFull = stackPtr === topPtr
   val underflow = isRead & noneSet & isEmpty
@@ -80,13 +78,13 @@ class StackModule(val dataWidth: Int, val len: Int) extends Module {
   }
 
   // Connect local signals to IO
-  io.out := out
-  io.underflow := underflow
-  io.overflow := overflow
+  io.out := RegNext(out)
+  io.underflow := RegNext(underflow)
+  io.overflow := RegNext(overflow)
   io.isEmpty := isEmpty
   io.isFull := isFull
-  io.popped := popped
-  io.peeked := peeked
+  io.popped := RegNext(popped)
+  io.peeked := RegNext(peeked)
 }
 // Your code ends here
 
